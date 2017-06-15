@@ -3,7 +3,7 @@ include ../mcl/common.mk
 CFLAGS += -std=c++11 -I../mcl/include -I./include
 
 SRC=src/bls_c.cpp
-HEADER=include/bls/bls.hpp include/bls/bls.h
+HEADER=include/bls/bls.h
 
 all: libbls384.so
 

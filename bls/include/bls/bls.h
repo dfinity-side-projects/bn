@@ -56,6 +56,9 @@ BLS_DLL_API size_t blsGetOpUnitSize(void);
 BLS_DLL_API int blsGetCurveOrder(char *buf, size_t maxBufSize);
 BLS_DLL_API int blsGetFieldOrder(char *buf, size_t maxBufSize);
 
+// get a generator of G2
+BLS_DLL_API void blsGetGeneratorOfG2(blsPublicKey *pub);
+
 BLS_DLL_API void blsIdSetInt(blsId *id, int x);
 // return 0 if success
 BLS_DLL_API int blsIdSetDecStr(blsId *id, const char *buf, size_t bufSize);
@@ -112,11 +115,30 @@ BLS_DLL_API int blsSecretKeyRecover(blsSecretKey *sec, const blsSecretKey *secVe
 BLS_DLL_API int blsPublicKeyRecover(blsPublicKey *pub, const blsPublicKey *pubVec, const blsId *idVec, size_t n);
 BLS_DLL_API int blsSignatureRecover(blsSignature *sig, const blsSignature *sigVec, const blsId *idVec, size_t n);
 
-BLS_DLL_API void blsSign(blsSignature *sig, const blsSecretKey *sec, const char *m, size_t size);
+BLS_DLL_API void blsSign(blsSignature *sig, const blsSecretKey *sec, const void *m, size_t size);
 
 // return 1 if valid
-BLS_DLL_API int blsVerify(const blsSignature *sig, const blsPublicKey *pub, const char *m, size_t size);
+BLS_DLL_API int blsVerify(const blsSignature *sig, const blsPublicKey *pub, const void *m, size_t size);
 BLS_DLL_API int blsVerifyPop(const blsSignature *sig, const blsPublicKey *pub);
+
+/*
+	Lagrange interpolation
+	recover out = y(0) by { (xVec[i], yVec[i]) }
+	return 0 if success else -1
+	@note k >= 2, xVec[i] != 0, xVec[i] != xVec[j] for i != j
+*/
+BLS_DLL_API int mclBn_FrLagrangeInterpolation(mclBnFr *out, const mclBnFr *xVec, const mclBnFr *yVec, size_t k);
+BLS_DLL_API int mclBn_G1LagrangeInterpolation(mclBnG1 *out, const mclBnFr *xVec, const mclBnG1 *yVec, size_t k);
+BLS_DLL_API int mclBn_G2LagrangeInterpolation(mclBnG2 *out, const mclBnFr *xVec, const mclBnG2 *yVec, size_t k);
+
+/*
+	evaluate polynomial
+	out = f(x) = c[0] + c[1] * x + c[2] * x^2 + ... + c[cSize - 1] * x^(cSize - 1)
+	@note cSize >= 2
+*/
+BLS_DLL_API int mclBn_FrEvaluatePolynomial(mclBnFr *out, const mclBnFr *cVec, size_t cSize, const mclBnFr *x);
+BLS_DLL_API int mclBn_G1EvaluatePolynomial(mclBnG1 *out, const mclBnG1 *cVec, size_t cSize, const mclBnFr *x);
+BLS_DLL_API int mclBn_G2EvaluatePolynomial(mclBnG2 *out, const mclBnG2 *cVec, size_t cSize, const mclBnFr *x);
 
 //////////////////////////////////////////////////////////////////////////
 // the following apis will be removed
@@ -148,6 +170,11 @@ BLS_DLL_API size_t blsPublicKeyGetHexStr(char *buf, size_t maxBufSize, const bls
 BLS_DLL_API int blsSignatureSetHexStr(blsSignature *sig, const char *buf, size_t bufSize);
 BLS_DLL_API size_t blsSignatureGetHexStr(char *buf, size_t maxBufSize, const blsSignature *sig);
 
+/*
+	Diffie Hellman key exchange
+	out = sec * pub
+*/
+BLS_DLL_API void blsDHKeyExchange(blsPublicKey *out, const blsSecretKey *sec, const blsPublicKey *pub);
 #ifdef __cplusplus
 }
 #endif

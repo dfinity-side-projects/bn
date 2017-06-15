@@ -138,6 +138,32 @@ int mclBn_init(int curve, int maxUnitSize)
 	return -1;
 }
 
+int mclBn_getOpUnitSize()
+{
+	return (int)Fp::getUnitSize() * sizeof(mcl::fp::Unit) / sizeof(uint64_t);
+}
+
+size_t copyStrAndReturnSize(char *buf, size_t maxBufSize, const std::string& str)
+{
+	if (str.size() >= maxBufSize) return 0;
+	memcpy(buf, str.c_str(), str.size());
+	buf[str.size()] = '\0';
+	return str.size();
+}
+
+size_t mclBn_getCurveOrder(char *buf, size_t maxBufSize)
+{
+	std::string str;
+	Fr::getModulo(str);
+	return copyStrAndReturnSize(buf, maxBufSize, str);
+}
+
+size_t mclBn_getFieldOrder(char *buf, size_t maxBufSize)
+{
+	std::string str;
+	Fp::getModulo(str);
+	return copyStrAndReturnSize(buf, maxBufSize, str);
+}
 ////////////////////////////////////////////////
 // set zero
 void mclBnFr_clear(mclBnFr *x)
@@ -146,7 +172,7 @@ void mclBnFr_clear(mclBnFr *x)
 }
 
 // set x to y
-void mclBnFr_setInt(mclBnFr *y, int x)
+void mclBnFr_setInt(mclBnFr *y, int64_t x)
 {
 	*cast(y) = x;
 }
@@ -156,12 +182,13 @@ int mclBnFr_setStr(mclBnFr *x, const char *buf, size_t bufSize, int ioMode)
 	return deserialize(x, buf, bufSize, ioMode, "mclBnFr_setStr", false);
 }
 int mclBnFr_setLittleEndian(mclBnFr *x, const void *buf, size_t bufSize)
+	try
 {
-	const size_t byteSize = cast(x)->getByteSize();
-	if (bufSize > byteSize) bufSize = byteSize;
-	std::string s((const char *)buf, bufSize);
-	s.resize(byteSize);
-	return deserialize(x, s.c_str(), s.size(), mcl::IoFixedSizeByteSeq, "mclBnFr_setLittleEndian", false);
+	cast(x)->setArrayMask((const char *)buf, bufSize);
+	return 0;
+} catch (std::exception& e) {
+	if (g_fp) fprintf(g_fp, "setArrayMask %s\n", e.what());
+	return -1;
 }
 int mclBnFr_deserialize(mclBnFr *x, const void *buf, size_t bufSize)
 {
@@ -310,6 +337,10 @@ void mclBnG1_mul(mclBnG1 *z, const mclBnG1 *x, const mclBnFr *y)
 {
 	G1::mul(*cast(z),*cast(x), *cast(y));
 }
+void mclBnG1_mulCT(mclBnG1 *z, const mclBnG1 *x, const mclBnFr *y)
+{
+	G1::mulCT(*cast(z),*cast(x), *cast(y));
+}
 
 ////////////////////////////////////////////////
 // set zero
@@ -386,6 +417,11 @@ void mclBnG2_mul(mclBnG2 *z, const mclBnG2 *x, const mclBnFr *y)
 void mclBnGT_clear(mclBnGT *x)
 {
 	cast(x)->clear();
+}
+void mclBnGT_setInt(mclBnGT *y, int64_t x)
+{
+	cast(y)->clear();
+	*(cast(y)->getFp0()) = x;
 }
 
 int mclBnGT_setStr(mclBnGT *x, const char *buf, size_t bufSize, int ioMode)
