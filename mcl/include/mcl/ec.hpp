@@ -704,8 +704,7 @@ public:
 	}
 	friend inline std::ostream& operator<<(std::ostream& os, const EcT& self)
 	{
-		int ioMode = fp::detectIoMode(Fp::BaseFp::getIoMode(), os);
-		ioMode |= ioMode_;
+		int ioMode = fp::detectIoMode(getIoMode(), os);
 		return os << self.getStr(ioMode);
 	}
 	std::istream& readStream(std::istream& is, int ioMode)
@@ -761,7 +760,8 @@ public:
 	}
 	friend inline std::istream& operator>>(std::istream& is, EcT& self)
 	{
-		return self.readStream(is, fp::detectIoMode(Fp::BaseFp::getIoMode(), is));
+		int ioMode = fp::detectIoMode(getIoMode(), is);
+		return self.readStream(is, ioMode);
 	}
 	void setStr(const std::string& str, int ioMode = 0)
 	{
@@ -785,6 +785,7 @@ public:
 		if (ioMode & 0xff) throw cybozu::Exception("EcT:setIoMode:use Fp::setIomode") << ioMode;
 		ioMode_ = ioMode;
 	}
+	static inline int getIoMode() { return Fp::BaseFp::getIoMode() | ioMode_; }
 	static inline void getWeierstrass(Fp& yy, const Fp& x)
 	{
 		Fp t;

@@ -6,7 +6,7 @@
 #include <iostream>
 
 template<size_t N>
-std::ostream dump(std::ostream& os, const uint64_t (&x)[N])
+std::ostream& dump(std::ostream& os, const uint64_t (&x)[N])
 {
 	for (size_t i = 0; i < N; i++) {
 		char buf[64];
@@ -24,8 +24,8 @@ CYBOZU_TEST_AUTO(init)
 	CYBOZU_TEST_EQUAL(sizeof(mclBnG2), sizeof(G2));
 	CYBOZU_TEST_EQUAL(sizeof(mclBnGT), sizeof(Fp12));
 
-	ret = mclBn_setErrFile("stderr");
-	CYBOZU_TEST_EQUAL(ret, 0);
+//	ret = mclBn_setErrFile("stderr");
+//	CYBOZU_TEST_EQUAL(ret, 0);
 
 #if MCLBN_FP_UNIT_SIZE == 4
 	printf("test MCLBN_curveFp254BNb %d\n", MCLBN_FP_UNIT_SIZE);
@@ -249,9 +249,12 @@ CYBOZU_TEST_AUTO(GT)
 	CYBOZU_TEST_EQUAL(size, strlen(buf));
 	CYBOZU_TEST_ASSERT(mclBnGT_isEqual(&x, &z));
 
+	/*
+		can't use mclBnGT_pow because x is not in GT
+	*/
 	mclBnFr n;
 	mclBnFr_setInt(&n, 3);
-	mclBnGT_pow(&z, &x, &n);
+	mclBnGT_powGeneric(&z, &x, &n);
 	mclBnGT_mul(&y, &x, &x);
 	mclBnGT_mul(&y, &y, &x);
 	CYBOZU_TEST_ASSERT(mclBnGT_isEqual(&y, &z));
@@ -280,6 +283,13 @@ CYBOZU_TEST_AUTO(pairing)
 
 	mclBnGT_pow(&e1, &e, &b);
 	mclBn_pairing(&e2, &P, &bQ);
+	CYBOZU_TEST_ASSERT(mclBnGT_isEqual(&e1, &e2));
+
+	mclBnFr n;
+	mclBnFr_setInt(&n, 3);
+	mclBnGT_pow(&e1, &e, &n);
+	mclBnGT_mul(&e2, &e, &e);
+	mclBnGT_mul(&e2, &e2, &e);
 	CYBOZU_TEST_ASSERT(mclBnGT_isEqual(&e1, &e2));
 }
 

@@ -90,6 +90,8 @@ public:
 	void operator-=(const FpDblT& x) { sub(*this, *this, x); }
 };
 
+template<class Fp> struct Fp12T;
+template<class Fp> class BNT;
 /*
 	beta = -1
 	Fp2 = F[i] / (i^2 + 1)
@@ -100,7 +102,18 @@ class Fp2T : public fp::Operator<Fp2T<Fp> > {
 	typedef fp::Unit Unit;
 	typedef FpDblT<Fp> FpDbl;
 	static uint32_t xi_a_;
+	static const size_t gN = 5;
+	/*
+		g = xi^((p - 1) / 6)
+		g[] = { g^2, g^4, g^1, g^3, g^5 }
+	*/
+	static Fp2T g[gN];
+	static Fp2T g2[gN];
+	static Fp2T g3[gN];
 public:
+	static const Fp2T *get_gTbl() { return &g[0]; }
+	static const Fp2T *get_g2Tbl() { return &g2[0]; }
+	static const Fp2T *get_g3Tbl() { return &g3[0]; }
 	typedef typename Fp::BaseFp BaseFp;
 	static const size_t maxSize = Fp::maxSize * 2;
 	static inline size_t getByteSize() { return Fp::getByteSize() * 2; }
@@ -248,6 +261,26 @@ public:
 		Fp::sqr(bb, x.b);
 		Fp::add(y, aa, bb);
 	}
+	/*
+		Frobenius
+		i^2 = -1
+		(a + bi)^p = a + bi^p in Fp
+		= a + bi if p = 1 mod 4
+		= a - bi if p = 3 mod 4
+	*/
+	static void Frobenius(Fp2T& y, const Fp2T& x)
+	{
+		if (Fp::getOp().pmod4 == 1) {
+			if (&y != &x) {
+				y = x;
+			}
+		} else {
+			if (&y != &x) {
+				y.a = x.a;
+			}
+			Fp::neg(y.b, x.b);
+		}
+	}
 
 	static uint32_t get_xi_a() { return xi_a_; }
 	static void init(uint32_t xi_a)
@@ -275,6 +308,33 @@ public:
 			op.fp2_mul_xi = fp2_mul_xi_1_1i;
 		} else {
 			op.fp2_mul_xi = fp2_mul_xiW;
+		}
+		const Fp2T xi(xi_a, 1);
+		const mpz_class& p = Fp::getOp().mp;
+		Fp2T::pow(g[0], xi, (p - 1) / 6); // g = xi^((p-1)/6)
+		for (size_t i = 1; i < gN; i++) {
+			g[i] = g[i - 1] * g[0];
+		}
+		/*
+			permutate [0, 1, 2, 3, 4] => [1, 3, 0, 2, 4]
+			g[0] = g^2
+			g[1] = g^4
+			g[2] = g^1
+			g[3] = g^3
+			g[4] = g^5
+		*/
+		{
+			Fp2T t = g[0];
+			g[0] = g[1];
+			g[1] = g[3];
+			g[3] = g[2];
+			g[2] = t;
+		}
+		for (size_t i = 0; i < gN; i++) {
+			Fp2T t(g[i].a, g[i].b);
+			if (Fp::getOp().pmod4 == 3) Fp::neg(t.b, t.b);
+			Fp2T::mul(g2[i], t, g[i]);
+			g3[i] = g[i] * g2[i];
 		}
 	}
 private:
@@ -573,6 +633,9 @@ struct Fp2DblT {
 };
 
 template<class Fp> uint32_t Fp2T<Fp>::xi_a_;
+template<class Fp> Fp2T<Fp> Fp2T<Fp>::g[Fp2T<Fp>::gN];
+template<class Fp> Fp2T<Fp> Fp2T<Fp>::g2[Fp2T<Fp>::gN];
+template<class Fp> Fp2T<Fp> Fp2T<Fp>::g3[Fp2T<Fp>::gN];
 
 /*
 	Fp6T = Fp2[v] / (v^3 - xi)
@@ -840,6 +903,11 @@ struct Fp12T : public fp::Operator<Fp12T<Fp> > {
 		a.clear();
 		b.clear();
 	}
+	void setOne()
+	{
+		clear();
+		a.a.a = 1;
+	}
 
 	Fp* getFp0() { return a.getFp0(); }
 	const Fp* getFp0() const { return a.getFp0(); }
@@ -952,6 +1020,73 @@ struct Fp12T : public fp::Operator<Fp12T<Fp> > {
 		Fp6::mul(y.b, x.b, t0);
 		Fp6::neg(y.b, y.b);
 	}
+	/*
+		y = 1 / x = conjugate of x if |x| = 1
+	*/
+	static void unitaryInv(Fp12T& y, const Fp12T& x)
+	{
+		if (&y != &x) y.a = x.a;
+		Fp6::neg(y.b, x.b);
+	}
+	/*
+		Frobenius
+		i^2 = -1
+		(a + bi)^p = a + bi^p in Fp
+		= a + bi if p = 1 mod 4
+		= a - bi if p = 3 mod 4
+
+		g = xi^(p - 1) / 6
+		v^3 = xi in Fp2
+		v^p = ((v^6) ^ (p-1)/6) v = g^2 v
+		v^2p = g^4 v^2
+		(a + bv + cv^2)^p in Fp6
+		= F(a) + F(b)g^2 v + F(c) g^4 v^2
+
+		w^p = ((w^6) ^ (p-1)/6) w = g w
+		((a + bv + cv^2)w)^p in Fp12T
+		= (F(a) g + F(b) g^3 v + F(c) g^5 v^2)w
+	*/
+	static void Frobenius(Fp12T& y, const Fp12T& x)
+	{
+		for (int i = 0; i < 6; i++) {
+			Fp2::Frobenius(y.getFp2()[i], x.getFp2()[i]);
+		}
+		for (int i = 1; i < 6; i++) {
+			y.getFp2()[i] *= Fp2::get_gTbl()[i - 1];
+		}
+	}
+	static void Frobenius2(Fp12T& y, const Fp12T& x)
+	{
+#if 0
+		Frobenius(y, x);
+		Frobenius(y, y);
+#else
+		y.getFp2()[0] = x.getFp2()[0];
+		if (Fp::getOp().pmod4 == 1) {
+			for (int i = 1; i < 6; i++) {
+				Fp2::mul(y.getFp2()[i], x.getFp2()[i], Fp2::get_g2Tbl()[i]);
+			}
+		} else {
+			for (int i = 1; i < 6; i++) {
+				Fp2::mulFp(y.getFp2()[i], x.getFp2()[i], Fp2::get_g2Tbl()[i - 1].a);
+			}
+		}
+#endif
+	}
+	static void Frobenius3(Fp12T& y, const Fp12T& x)
+	{
+#if 0
+		Frobenius(y, x);
+		Frobenius(y, y);
+		Frobenius(y, y);
+#else
+		Fp2::Frobenius(y.getFp2()[0], x.getFp2()[0]);
+		for (int i = 1; i < 6; i++) {
+			Fp2::Frobenius(y.getFp2()[i], x.getFp2()[i]);
+			y.getFp2()[i] *= Fp2::get_g3Tbl()[i - 1];
+		}
+#endif
+	}
 	std::istream& readStream(std::istream& is, int ioMode)
 	{
 		a.readStream(is, ioMode);
@@ -984,6 +1119,54 @@ struct Fp12T : public fp::Operator<Fp12T<Fp> > {
 	{
 		return os << self.getStr(fp::detectIoMode(Fp::BaseFp::getIoMode(), os));
 	}
+};
+
+/*
+	convert multiplicative group to additive group
+*/
+template<class T>
+struct GroupMtoA : public T {
+	static T& castT(GroupMtoA& x) { return static_cast<T&>(x); }
+	static const T& castT(const GroupMtoA& x) { return static_cast<const T&>(x); }
+	void clear()
+	{
+		castT(*this) = 1;
+	}
+	bool isZero() const { return castT(*this).isOne(); }
+	static void add(GroupMtoA& z, const GroupMtoA& x, const GroupMtoA& y)
+	{
+		T::mul(castT(z), castT(x), castT(y));
+	}
+	static void dbl(GroupMtoA& y, const GroupMtoA& x)
+	{
+		T::sqr(castT(y), castT(x));
+	}
+	static void neg(GroupMtoA& y, const GroupMtoA& x)
+	{
+		// assume Fp12
+		T::unitaryInv(castT(y), castT(x));
+	}
+	static void Frobenus(GroupMtoA& y, const GroupMtoA& x)
+	{
+		T::Frobenius(castT(y), castT(x));
+	}
+	template<class INT>
+	static void mul(GroupMtoA& z, const GroupMtoA& x, const INT& y)
+	{
+		T::pow(castT(z), castT(x), y);
+	}
+	template<class INT>
+	static void mulGeneric(GroupMtoA& z, const GroupMtoA& x, const INT& y)
+	{
+		T::powGeneric(castT(z), castT(x), y);
+	}
+	void operator+=(const GroupMtoA& rhs)
+	{
+		add(*this, *this, rhs);
+	}
+	void normalize() {}
+private:
+	bool isOne() const;
 };
 
 } // mcl
