@@ -8,7 +8,7 @@ HEADER=include/bls/bls.h
 all: libbls384.so
 
 libbls384.so: $(SRC) $(HEADER)
-	$(CXX) -o $@ $(SRC) -shared $(CFLAGS) -D"MCLBN_FP_UNIT_SIZE=6" ../mcl/lib/libmcl.a
+	$(CXX) -o $@ $(SRC) -shared $(CFLAGS) -D"MCLBN_FP_UNIT_SIZE=6" ../mcl/lib/libmcl.a -lgmpxx -lgmp -lcrypto
 
 clean:
 	$(RM) libbls384.so
