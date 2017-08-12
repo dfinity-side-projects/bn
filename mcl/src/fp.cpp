@@ -1,9 +1,15 @@
 #include <mcl/op.hpp>
 #include <mcl/util.hpp>
+#ifdef MCL_DONT_USE_OPENSSL
+#include <cybozu/sha1.hpp>
+#else
 #include <cybozu/crypto.hpp>
+#endif
 #include <cybozu/endian.hpp>
 #include "conversion.hpp"
+#ifdef MCL_USE_XBYAK
 #include "fp_generator.hpp"
+#endif
 #include "low_func.hpp"
 #ifdef MCL_USE_LLVM
 #include "proto.hpp"
@@ -41,7 +47,7 @@ void Op::destroyFpGenerator(FpGenerator *)
 
 inline void setUnitAsLE(void *p, Unit x)
 {
-#if CYBOZU_OS_BIT == 32
+#if MCL_SIZEOF_UNIT == 4
 	cybozu::Set32bitAsLE(p, x);
 #else
 	cybozu::Set64bitAsLE(p, x);
@@ -49,7 +55,7 @@ inline void setUnitAsLE(void *p, Unit x)
 }
 inline Unit getUnitAsLE(const void *p)
 {
-#if CYBOZU_OS_BIT == 32
+#if MCL_SIZEOF_UNIT == 4
 	return cybozu::Get32bitAsLE(p);
 #else
 	return cybozu::Get64bitAsLE(p);
@@ -122,7 +128,7 @@ Mode StrToMode(const std::string& s)
 
 void dumpUnit(Unit x)
 {
-#if CYBOZU_OS_BIT == 32
+#if MCL_SIZEOF_UNIT == 4
 	printf("%08x", (uint32_t)x);
 #else
 	printf("%016llx", (unsigned long long)x);
@@ -130,7 +136,7 @@ void dumpUnit(Unit x)
 }
 void UnitToHex(char *buf, size_t maxBufSize, Unit x)
 {
-#if CYBOZU_OS_BIT == 32
+#if MCL_SIZEOF_UNIT == 4
 	CYBOZU_SNPRINTF(buf, maxBufSize, "%08x", (uint32_t)x);
 #else
 	CYBOZU_SNPRINTF(buf, maxBufSize, "%016llx ", (unsigned long long)x);
@@ -155,12 +161,13 @@ std::string hexStrToLittleEndian(const char *buf, size_t bufSize)
 }
 
 // { 0xaf, 0x23, 0x01 } => "0123af"
-std::string littleEndianToHexStr(const char *buf, size_t bufSize)
+std::string littleEndianToHexStr(const void *buf, size_t bufSize)
 {
 	std::string s;
 	s.resize(bufSize * 2);
+	const uint8_t *p = (const uint8_t *)buf;
 	for (size_t i = 0; i < bufSize; i++) {
-		cybozu::itohex(&s[i * 2], 2, (uint8_t)buf[bufSize - 1 - i], false);
+		cybozu::itohex(&s[i * 2], 2, p[bufSize - 1 - i], false);
 	}
 	return s;
 }
@@ -189,6 +196,11 @@ bool isEnableJIT()
 
 std::string hash(size_t bitSize, const void *msg, size_t msgSize)
 {
+#ifdef MCL_DONT_USE_OPENSSL
+	(void)bitSize;
+	cybozu::Sha1 sha1;
+	return sha1.digest((const char*)msg, msgSize);
+#else
 	cybozu::crypto::Hash::Name name;
 	if (bitSize <= 160) {
 		name = cybozu::crypto::Hash::N_SHA1;
@@ -202,8 +214,10 @@ std::string hash(size_t bitSize, const void *msg, size_t msgSize)
 		name = cybozu::crypto::Hash::N_SHA512;
 	}
 	return cybozu::crypto::Hash::digest(name, (const char *)msg, msgSize);
+#endif
 }
 
+#ifndef MCL_USE_VINT
 static inline void set_mpz_t(mpz_t& z, const Unit* p, int n)
 {
 	int s = n;
@@ -215,16 +229,28 @@ static inline void set_mpz_t(mpz_t& z, const Unit* p, int n)
 	z->_mp_size = s;
 	z->_mp_d = (mp_limb_t*)const_cast<Unit*>(p);
 }
+#endif
 
+/*
+	y = (1/x) mod op.p
+*/
 static inline void fp_invOpC(Unit *y, const Unit *x, const Op& op)
 {
 	const int N = (int)op.N;
+#ifdef MCL_USE_VINT
+	Vint vx, vy, vp;
+	vx.setArray(x, N);
+	vp.setArray(op.p, N);
+	Vint::invMod(vy, vx, vp);
+	vy.getArray(y, N);
+#else
 	mpz_class my;
 	mpz_t mx, mp;
 	set_mpz_t(mx, x, N);
 	set_mpz_t(mp, op.p, N);
 	mpz_invert(my.get_mpz_t(), mx, mp);
 	gmp::getArray(y, N, my);
+#endif
 }
 
 /*
@@ -309,7 +335,7 @@ void setOp(Op& op, Mode mode)
 	setOp2<N, Gtag, true>(op);
 #ifdef MCL_USE_LLVM
 	if (mode != fp::FP_GMP && mode != fp::FP_GMP_MONT) {
-#if CYBOZU_HOST == CYBOZU_HOST_INTEL
+#if defined(MCL_USE_XBYAK) && CYBOZU_HOST == CYBOZU_HOST_INTEL
 		Xbyak::util::Cpu cpu;
 		if (cpu.has(Xbyak::util::Cpu::tBMI2)) {
 			setOp2<N, LBMI2tag, (N * UnitBitSize <= 256)>(op);
@@ -364,7 +390,7 @@ static void initForMont(Op& op, const Unit *p, Mode mode)
 		R = (t << (N * UnitBitSize)) % op.mp;
 		t = (R * R) % op.mp;
 		gmp::getArray(op.R2, N, t);
-		t = (R * R * R) % op.mp;
+		t = (t * R) % op.mp;
 		gmp::getArray(op.R3, N, t);
 	}
 	op.rp = getMontgomeryCoeff(p[0]);
@@ -385,7 +411,11 @@ void Op::init(const std::string& mstr, size_t maxBitSize, Mode mode, size_t mclM
 	if (mclMaxBitSize != MCL_MAX_BIT_SIZE) {
 		throw cybozu::Exception("Op:init:mismatch between header and library of MCL_MAX_BIT_SIZE") << mclMaxBitSize << MCL_MAX_BIT_SIZE;
 	}
+#ifdef MCL_USE_VINT
+	assert(sizeof(mcl::vint::Unit) == sizeof(Unit));
+#else
 	assert(sizeof(mp_limb_t) == sizeof(Unit));
+#endif
 	clear();
 	if (maxBitSize > MCL_MAX_BIT_SIZE) {
 		throw cybozu::Exception("Op:init:too large maxBitSize") << maxBitSize << MCL_MAX_BIT_SIZE;
@@ -408,23 +438,24 @@ void Op::init(const std::string& mstr, size_t maxBitSize, Mode mode, size_t mclM
 	Xbyak > llvm_mont > llvm > gmp_mont > gmp
 */
 #ifdef MCL_USE_XBYAK
-	if (mode == fp::FP_AUTO) mode = fp::FP_XBYAK;
-	if (mode == fp::FP_XBYAK && bitSize > 256) {
-		mode = fp::FP_AUTO;
+	if (mode == FP_AUTO) mode = FP_XBYAK;
+	if (mode == FP_XBYAK && bitSize > 256) {
+		mode = FP_AUTO;
 	}
-	if (!fp::isEnableJIT()) {
-		mode = fp::FP_AUTO;
+	if (!isEnableJIT()) {
+		mode = FP_AUTO;
 	}
 #else
-	if (mode == fp::FP_XBYAK) mode = fp::FP_AUTO;
+	if (mode == FP_XBYAK) mode = FP_AUTO;
 #endif
 #ifdef MCL_USE_LLVM
-	if (mode == fp::FP_AUTO) mode = fp::FP_LLVM_MONT;
+	if (mode == FP_AUTO) mode = FP_LLVM_MONT;
 #else
-	if (mode == fp::FP_LLVM || mode == fp::FP_LLVM_MONT) mode = fp::FP_AUTO;
+	if (mode == FP_LLVM || mode == FP_LLVM_MONT) mode = FP_AUTO;
 #endif
-	isMont = mode == fp::FP_GMP_MONT || mode == fp::FP_LLVM_MONT || mode == fp::FP_XBYAK;
-#ifndef NDEBUG
+	if (mode == FP_AUTO) mode = FP_GMP_MONT;
+	isMont = mode == FP_GMP_MONT || mode == FP_LLVM_MONT || mode == FP_XBYAK;
+#if 0
 	fprintf(stderr, "mode=%s, isMont=%d, maxBitSize=%d"
 #ifdef MCL_USE_XBYAK
 		" MCL_USE_XBYAK"
@@ -486,7 +517,7 @@ void Op::init(const std::string& mstr, size_t maxBitSize, Mode mode, size_t mclM
 	case 17: setOp<17>(*this, mode); break; // 521 if 32-bit
 #endif
 	default:
-		throw cybozu::Exception("Op::init:not:support") << N << mstr;
+		throw cybozu::Exception("Op:init:not:support") << N << mstr;
 	}
 #ifdef MCL_USE_LLVM
 	if (primeMode == PM_NICT_P192) {
@@ -625,7 +656,7 @@ static bool isInUint64(uint64_t *pv, const fp::Block& b)
 	for (size_t i = start; i < b.n; i++) {
 		if (b.p[i]) return false;
 	}
-#if CYBOZU_OS_BIT == 32
+#if MCL_SIZEOF_UNIT == 4
 	*pv = b.p[0] | (uint64_t(b.p[1]) << 32);
 #else
 	*pv = b.p[0];

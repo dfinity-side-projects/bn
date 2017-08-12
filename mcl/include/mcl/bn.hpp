@@ -66,6 +66,7 @@ struct MapToT {
 	{
 		F x, y, w;
 		bool negative = legendre(t) < 0;
+		if (t.isZero()) goto ERR_POINT;
 		F::sqr(w, t);
 		w += G::b_;
 		*w.getFp0() += Fp::one();
@@ -176,7 +177,7 @@ struct GLV1 {
 	void mul(G1& Q, const G1& P, mpz_class x, bool constTime = false) const
 	{
 		typedef mcl::fp::Unit Unit;
-		const size_t maxUnit = 3;
+		const size_t maxUnit = 384 / 2 / mcl::fp::UnitBitSize;
 		const int splitN = 2;
 		mpz_class u[splitN];
 		G1 in[splitN];
@@ -262,7 +263,7 @@ struct GLV1 {
 	twisted Frobenius for G2
 */
 template<class G2>
-struct AddFrobenius : public G2 {
+struct HaveFrobenius : public G2 {
 	typedef typename G2::Fp Fp2;
 	/*
 		FrobeniusOnTwist
@@ -281,7 +282,7 @@ struct AddFrobenius : public G2 {
 		D.x *= Fp2::get_gTbl()[0];
 		D.y *= Fp2::get_gTbl()[3];
 	}
-	static void Frobenius(AddFrobenius& y, const AddFrobenius& x)
+	static void Frobenius(HaveFrobenius& y, const HaveFrobenius& x)
 	{
 		Frobenius(static_cast<G2&>(y), static_cast<const G2&>(x));
 	}
@@ -356,7 +357,7 @@ struct GLV2 {
 		}
 #endif
 		typedef mcl::fp::Unit Unit;
-		const size_t maxUnit = 3;
+		const size_t maxUnit = 384 / 2 / mcl::fp::UnitBitSize;
 		const int splitN = 4;
 		mpz_class u[splitN];
 		T in[splitN];
@@ -456,10 +457,10 @@ struct GLV2 {
 	}
 	void mul(G2& Q, const G2& P, mpz_class x, bool constTime = false) const
 	{
-		typedef AddFrobenius<G2> G2withF;
-		G2withF& _Q(static_cast<G2withF&>(Q));
-		const G2withF& _P(static_cast<const G2withF&>(P));
-		mul(_Q, _P, x, constTime);
+		typedef HaveFrobenius<G2> G2withF;
+		G2withF& QQ(static_cast<G2withF&>(Q));
+		const G2withF& PP(static_cast<const G2withF&>(P));
+		mul(QQ, PP, x, constTime);
 	}
 	void pow(Fp12& z, const Fp12& x, mpz_class y, bool constTime = false) const
 	{
@@ -521,7 +522,7 @@ struct ParamT {
 		p = eval(pCoff, z);
 		assert((p % 6) == 1);
 		r = eval(rCoff, z);
-		Fp::init(p.get_str(), mode);
+		Fp::init(p, mode);
 		Fp2::init(cp.xi_a);
 		b = cp.b;
 		Fp2 xi(cp.xi_a, 1);
@@ -533,10 +534,10 @@ struct ParamT {
 		mapTo.init(2 * p - r);
 		glv1.init(r, z);
 
-		const mpz_class largest_c = abs(6 * z + 2);
+		const mpz_class largest_c = gmp::abs(z * 6 + 2);
 		useNAF = gmp::getNAF(siTbl, largest_c);
 		precomputedQcoeffSize = getPrecomputeQcoeffSize(siTbl);
-		gmp::getNAF(zReplTbl, abs(z));
+		gmp::getNAF(zReplTbl, gmp::abs(z));
 		exp_c0 = -2 + z * (-18 + z * (-30 - 36 *z));
 		exp_c1 = 1 + z * (-12 + z * (-18 - 36 * z));
 		exp_c2 = 6 * z * z + 1;
@@ -563,7 +564,7 @@ struct BNT {
 	typedef mcl::Fp12T<Fp> Fp12;
 	typedef mcl::EcT<Fp> G1;
 	typedef mcl::EcT<Fp2> G2;
-	typedef AddFrobenius<G2> G2withF;
+	typedef HaveFrobenius<G2> G2withF;
 	typedef mcl::Fp2DblT<Fp> Fp2Dbl;
 	typedef ParamT<Fp> Param;
 	static Param param;
@@ -1072,6 +1073,10 @@ struct BNT {
 		*/
 		static void fixed_power(Fp12& z, const Fp12& x)
 		{
+			if (x.isOne()) {
+				z = 1;
+				return;
+			}
 			assert(param.isCurveFp254BNb);
 			Fp12 x_org = x;
 			Fp12 d62;

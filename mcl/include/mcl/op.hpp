@@ -11,6 +11,10 @@
 #ifndef MCL_MAX_BIT_SIZE
 	#define MCL_MAX_BIT_SIZE 521
 #endif
+#ifdef __EMSCRIPTEN__
+	#define MCL_DONT_USE_XBYAK
+	#define MCL_DONT_USE_OPENSSL
+#endif
 #if !defined(MCL_DONT_USE_XBYAK) && (defined(_WIN64) || defined(__x86_64__))
 	#define MCL_USE_XBYAK
 #endif
@@ -89,15 +93,10 @@ enum IoMode {
 
 namespace fp {
 
-#if defined(CYBOZU_OS_BIT) && (CYBOZU_OS_BIT == 32)
-typedef uint32_t Unit;
-#else
-typedef uint64_t Unit;
-#endif
 const size_t UnitBitSize = sizeof(Unit) * 8;
 
 const size_t maxUnitSize = (MCL_MAX_BIT_SIZE + UnitBitSize - 1) / UnitBitSize;
-#define MCL_MAX_UNIT_SIZE ((MCL_MAX_BIT_SIZE + CYBOZU_OS_BIT - 1) / CYBOZU_OS_BIT)
+#define MCL_MAX_UNIT_SIZE ((MCL_MAX_BIT_SIZE + MCL_UNIT_BIT_SIZE - 1) / MCL_UNIT_BIT_SIZE)
 
 struct FpGenerator;
 struct Op;
