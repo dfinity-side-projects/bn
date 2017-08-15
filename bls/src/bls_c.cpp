@@ -25,7 +25,7 @@ static std::vector<Fp6> g_Qcoeff; // precomputed Q
 static const G2& getQ() { return g_Q; }
 static const std::vector<Fp6>& getQcoeff() { return g_Qcoeff; }
 
-int blsInit(int curve, int maxUnitSize)
+int blsInitNotThreadSafe(int curve, int maxUnitSize)
 	try
 {
 	if (mclBn_init(curve, maxUnitSize) != 0) return -1;
@@ -34,6 +34,31 @@ int blsInit(int curve, int maxUnitSize)
 	return 0;
 } catch (std::exception&) {
 	return -1;
+}
+
+#if defined(CYBOZU_CPP_VERSION) && CYBOZU_CPP_VERSION >= CYBOZU_CPP_VERSION_CPP11
+#include <mutex>
+	#define USE_STD_MUTEX
+#else
+#include <cybozu/mutex.hpp>
+#endif
+
+int blsInit(int curve, int maxUnitSize)
+{
+	int ret = 0;
+#ifdef USE_STD_MUTEX
+	static std::mutex m;
+	std::lock_guard<std::mutex> lock(m);
+#else
+	static cybozu::Mutex m;
+	cybozu::AutoLock lock(m);
+#endif
+	static int g_curve = -1;
+	if (g_curve != curve) {
+		ret = blsInitNotThreadSafe(curve, maxUnitSize);
+		g_curve = curve;
+	}
+	return ret;
 }
 
 static inline const mclBnG1 *cast(const G1* x) { return (const mclBnG1*)x; }
