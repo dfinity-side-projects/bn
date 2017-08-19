@@ -14,7 +14,7 @@ clean:
 
 .PHONY: $(MCL_LIB) $(TARGET)
 
-PREFIX?=/workspace/build/cpp/
+PREFIX?=/usr/local/
 install: $(TARGET)
 	mkdir -p $(PREFIX)lib
 	cp -a $(TARGET) $(PREFIX)lib
