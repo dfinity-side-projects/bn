@@ -15,7 +15,7 @@ make
 make install
 ```
 The library is then installed under `/usr/local/`.
-In order to use it as a library for any project (see (go-dfinity-crypto)[https://github.com/dfinity/go-dfinity-crypto] for example), your loader must be aware of this location. There are two common solutions:
+In order to use it as a library for any project (see [go-dfinity-crypto](https://github.com/dfinity/go-dfinity-crypto) for example), your loader must be aware of this location. There are two common solutions:
  - To use it for the current session:
 ```bash
 export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib
