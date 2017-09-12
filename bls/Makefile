@@ -10,5 +10,10 @@ all: libbls384.so
 libbls384.so: $(SRC) $(HEADER)
 	$(CXX) -o $@ $(SRC) -shared $(CFLAGS) -D"MCLBN_FP_UNIT_SIZE=6" -lmcl -lgmpxx -lgmp -lcrypto
 
+libbls384.o: $(SRC) $(HEADER)
+	$(CXX) -o $@ -c $(SRC) $(CFLAGS) -D"MCLBN_FP_UNIT_SIZE=6"
+
+libbls384.a: libbls384.o ; ar rcs $@ $^
+
 clean:
 	$(RM) libbls384.so
