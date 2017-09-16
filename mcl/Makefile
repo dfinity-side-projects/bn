@@ -3,7 +3,7 @@ LIB_DIR=lib
 OBJ_DIR=obj
 EXE_DIR=bin
 SRC_SRC=fp.cpp bn_c256.cpp bn_c384.cpp
-TEST_SRC=fp_test.cpp ec_test.cpp fp_util_test.cpp window_method_test.cpp elgamal_test.cpp fp_tower_test.cpp gmp_test.cpp bn_test.cpp bn384_test.cpp glv_test.cpp paillier_test.cpp bgn_test.cpp vint_test.cpp
+TEST_SRC=fp_test.cpp ec_test.cpp fp_util_test.cpp window_method_test.cpp elgamal_test.cpp fp_tower_test.cpp gmp_test.cpp bn_test.cpp bn384_test.cpp glv_test.cpp paillier_test.cpp she_test.cpp vint_test.cpp
 TEST_SRC+=bn_c256_test.cpp bn_c384_test.cpp
 ifeq ($(CPU),x86-64)
   MCL_USE_XBYAK?=1
@@ -189,8 +189,24 @@ test: $(TEST_EXE)
 	@sh -ec 'for i in $(TEST_EXE); do $$i|grep "ctest:name"; done' > result.txt
 	@grep -v "ng=0, exception=0" result.txt; if [ $$? -eq 1 ]; then echo "all unit tests succeed"; else exit 1; fi
 
+EXPORTED_TXT=ffi/js/exported-mcl.txt
+EXPORTED_JS=docs/demo/exported-mcl.js
+$(EXPORTED_TXT): ./include/mcl/bn.h
+	python ffi/js/export-functions.py $< > $@
+
+$(EXPORTED_JS): ./include/mcl/bn.h
+	python ffi/js/export-functions.py -js mcl $< > $@
+
+EXPORTED_MCL=$(shell cat $(EXPORTED_TXT))
+
+docs/demo/mclbn.js: src/fp.cpp src/bn_c256.cpp $(EXPORTED_TXT) $(EXPORTED_JS)
+	emcc -o $@ src/fp.cpp src/bn_c256.cpp -I./include -I../cybozulib/include -s WASM=1 -s "MODULARIZE=1" -s "EXPORTED_FUNCTIONS=[$(EXPORTED_MCL)]" -O3 -DNDEBUG -DMCLBN_FP_UNIT_SIZE=4 -DMCL_MAX_BIT_SIZE=256 -s DISABLE_EXCEPTION_CATCHING=0 -s NO_EXIT_RUNTIME=1
+
+demo:
+	$(MAKE) docs/demo/mclbn.js
+
 clean:
-	$(RM) $(MCL_LIB) $(MCL_SLIB) $(BN256_LIB) $(BN256_SLIB) $(BN384_LIB) $(BN384_SLIB) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.d $(EXE_DIR)/*.exe $(GEN_EXE) $(ASM_OBJ) $(LIB_OBJ) $(BN256_OBJ) $(BN384_OBJ) $(LLVM_SRC) $(FUNC_LIST) src/*.ll
+	$(RM) $(MCL_LIB) $(MCL_SLIB) $(BN256_LIB) $(BN256_SLIB) $(BN384_LIB) $(BN384_SLIB) $(OBJ_DIR)/*.o $(OBJ_DIR)/*.d $(EXE_DIR)/*.exe $(GEN_EXE) $(ASM_OBJ) $(LIB_OBJ) $(BN256_OBJ) $(BN384_OBJ) $(LLVM_SRC) $(FUNC_LIST) src/*.ll $(EXPORTED_JS) $(EXPORTED_TXT) docs/demo/mclbn.js docs/demo/mclbn.wasm
 
 ALL_SRC=$(SRC_SRC) $(TEST_SRC) $(SAMPLE_SRC)
 DEPEND_FILE=$(addprefix $(OBJ_DIR)/, $(addsuffix .d,$(basename $(ALL_SRC))))
