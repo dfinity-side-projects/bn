@@ -44,6 +44,7 @@ class EcT {
 	};
 public:
 	typedef _Fp Fp;
+	typedef _Fp BaseFp;
 #ifdef MCL_EC_USE_AFFINE
 	Fp x, y;
 	bool inf_;
@@ -720,6 +721,7 @@ public:
 			const size_t n = Fp::getByteSize();
 			str.resize(n);
 			is.read(&str[0], n);
+			if (!is) throw cybozu::Exception("EcT:readStream:can't read") << n;
 			if (fp::isZeroArray(&str[0], n)) {
 				clear();
 				return is;

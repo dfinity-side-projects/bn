@@ -327,6 +327,80 @@ CYBOZU_TEST_AUTO(precomputed)
 	CYBOZU_TEST_ASSERT(mclBnGT_isEqual(&e1, &f3));
 }
 
+CYBOZU_TEST_AUTO(serialize)
+{
+	const size_t opUnitSize = mclBn_getOpUnitSize();
+	mclBnFr x1, x2;
+	mclBnG1 P1, P2;
+	mclBnG2 Q1, Q2;
+	char buf[1024];
+	size_t n;
+	size_t expectSize;
+	int ret;
+	// Fr
+	expectSize = opUnitSize * 8;
+	mclBnFr_setInt(&x1, -1);
+	n = mclBnFr_serialize(buf, sizeof(buf), &x1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+
+	ret = mclBnFr_deserialize(&x2, buf, n);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnFr_isEqual(&x1, &x2));
+
+	ret = mclBnFr_deserialize(&x2, buf, n - 1);
+	CYBOZU_TEST_ASSERT(ret != 0);
+
+	memset(&x2, 0, sizeof(x2));
+	ret = mclBnFr_deserialize(&x2, buf, n + 1);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnFr_isEqual(&x1, &x2));
+
+	n = mclBnFr_serialize(buf, expectSize, &x1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+
+	// G1
+	expectSize = opUnitSize * 8;
+	mclBnG1_hashAndMapTo(&P1, "1", 1);
+	n = mclBnG1_serialize(buf, sizeof(buf), &P1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+
+	ret = mclBnG1_deserialize(&P2, buf, n);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnG1_isEqual(&P1, &P2));
+
+	ret = mclBnG1_deserialize(&P2, buf, n - 1);
+	CYBOZU_TEST_ASSERT(ret != 0);
+
+	memset(&P2, 0, sizeof(P2));
+	ret = mclBnG1_deserialize(&P2, buf, n + 1);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnG1_isEqual(&P1, &P2));
+
+	n = mclBnG1_serialize(buf, expectSize, &P1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+
+	// G2
+	expectSize = opUnitSize * 8 * 2;
+	mclBnG2_hashAndMapTo(&Q1, "1", 1);
+	n = mclBnG2_serialize(buf, sizeof(buf), &Q1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+
+	ret = mclBnG2_deserialize(&Q2, buf, n);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnG2_isEqual(&Q1, &Q2));
+
+	ret = mclBnG2_deserialize(&Q2, buf, n - 1);
+	CYBOZU_TEST_ASSERT(ret != 0);
+
+	memset(&Q2, 0, sizeof(Q2));
+	ret = mclBnG2_deserialize(&Q2, buf, n + 1);
+	CYBOZU_TEST_EQUAL(ret, 0);
+	CYBOZU_TEST_ASSERT(mclBnG2_isEqual(&Q1, &Q2));
+
+	n = mclBnG2_serialize(buf, expectSize, &Q1);
+	CYBOZU_TEST_EQUAL(n, expectSize);
+}
+
 #if MCLBN_FP_UNIT_SIZE == 6
 CYBOZU_TEST_AUTO(badG2)
 {

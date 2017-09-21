@@ -33,6 +33,7 @@ const CurveParam CurveFp254BNb = { "-0x4080000000000001", 2, 1 }; // -(2^62 + 2^
 // provisional(experimental) param with maxBitSize = 384
 const CurveParam CurveFp382_1 = { "-0x400011000000000000000001", 2, 1 }; // -(2^94 + 2^76 + 2^72 + 1) // A Family of Implementation-Friendly BN Elliptic Curves
 const CurveParam CurveFp382_2 = { "-0x400040090001000000000001", 2, 1 }; // -(2^94 + 2^78 + 2^67 + 2^64 + 2^48 + 1) // used in relic-toolkit
+const CurveParam CurveFp462 = { "0x4001fffffffffffffffffffffbfff", 5, 2 }; // 2^114 + 2^101 - 2^14 - 1 // https://eprint.iacr.org/2017/334
 
 template<class Fp>
 struct MapToT {
@@ -177,7 +178,7 @@ struct GLV1 {
 	void mul(G1& Q, const G1& P, mpz_class x, bool constTime = false) const
 	{
 		typedef mcl::fp::Unit Unit;
-		const size_t maxUnit = 384 / 2 / mcl::fp::UnitBitSize;
+		const size_t maxUnit = 512 / 2 / mcl::fp::UnitBitSize;
 		const int splitN = 2;
 		mpz_class u[splitN];
 		G1 in[splitN];
@@ -186,7 +187,7 @@ struct GLV1 {
 		Unit w[splitN][maxUnit]; // unit array of u[i]
 		int maxBit = 0; // max bit of u[i]
 		int maxN = 0;
-		int m = 0;
+		int remainBit = 0;
 
 		x %= r;
 		if (x == 0) {
@@ -226,15 +227,15 @@ struct GLV1 {
 		assert(maxBit > 0);
 		maxBit--;
 		/*
-			maxBit = maxN * UnitBitSize + m
-			0 < m <= UnitBitSize
+			maxBit = maxN * UnitBitSize + remainBit
+			0 < remainBit <= UnitBitSize
 		*/
 		maxN = maxBit / mcl::fp::UnitBitSize;
-		m = maxBit % mcl::fp::UnitBitSize;
-		m++;
+		remainBit = maxBit % mcl::fp::UnitBitSize;
+		remainBit++;
 		Q.clear();
 		for (int i = maxN; i >= 0; i--) {
-			for (int j = m - 1; j >= 0; j--) {
+			for (int j = remainBit - 1; j >= 0; j--) {
 				G1::dbl(Q, Q);
 				uint32_t b0 = (w[0][i] >> j) & 1;
 				uint32_t b1 = (w[1][i] >> j) & 1;
@@ -245,7 +246,7 @@ struct GLV1 {
 					Q += tbl[c];
 				}
 			}
-			m = (int)mcl::fp::UnitBitSize;
+			remainBit = (int)mcl::fp::UnitBitSize;
 		}
 #endif
 	DummyLoop:
@@ -357,7 +358,7 @@ struct GLV2 {
 		}
 #endif
 		typedef mcl::fp::Unit Unit;
-		const size_t maxUnit = 384 / 2 / mcl::fp::UnitBitSize;
+		const size_t maxUnit = 512 / 2 / mcl::fp::UnitBitSize;
 		const int splitN = 4;
 		mpz_class u[splitN];
 		T in[splitN];
@@ -366,7 +367,7 @@ struct GLV2 {
 		Unit w[splitN][maxUnit]; // unit array of u[i]
 		int maxBit = 0; // max bit of u[i]
 		int maxN = 0;
-		int m = 0;
+		int remainBit = 0;
 
 		x %= r;
 		if (x == 0) {
@@ -422,15 +423,15 @@ struct GLV2 {
 		}
 		maxBit--;
 		/*
-			maxBit = maxN * UnitBitSize + m
-			0 < m <= UnitBitSize
+			maxBit = maxN * UnitBitSize + remainBit
+			0 < remainBit <= UnitBitSize
 		*/
 		maxN = maxBit / mcl::fp::UnitBitSize;
-		m = maxBit % mcl::fp::UnitBitSize;
-		m++;
+		remainBit = maxBit % mcl::fp::UnitBitSize;
+		remainBit++;
 		Q.clear();
 		for (int i = maxN; i >= 0; i--) {
-			for (int j = m - 1; j >= 0; j--) {
+			for (int j = remainBit - 1; j >= 0; j--) {
 				T::dbl(Q, Q);
 				uint32_t b0 = (w[0][i] >> j) & 1;
 				uint32_t b1 = (w[1][i] >> j) & 1;
@@ -443,7 +444,7 @@ struct GLV2 {
 					Q += tbl[c];
 				}
 			}
-			m = (int)mcl::fp::UnitBitSize;
+			remainBit = (int)mcl::fp::UnitBitSize;
 		}
 #endif
 	DummyLoop:
@@ -489,9 +490,14 @@ struct ParamT {
 		y^2 = x^3 + b
 		=> (y'w^3)^2 = (x'w^2)^3 + b
 		=> y'^2 = x'^3 + b / w^6 ; w^6 = xi
-		=> y'^2 = x'^3 + b_div_xi;
+		=> y'^2 = x'^3 + twist_b;
 	*/
-	Fp2 b_div_xi;
+	Fp2 twist_b;
+	enum {
+		tb_generic,
+		tb_1m1i,
+		tb_1m2i
+	} twist_b_type;
 	bool is_b_div_xi_1_m1i;
 	mpz_class exp_c0;
 	mpz_class exp_c1;
@@ -526,10 +532,16 @@ struct ParamT {
 		Fp2::init(cp.xi_a);
 		b = cp.b;
 		Fp2 xi(cp.xi_a, 1);
-		b_div_xi = Fp2(b) / xi;
-		is_b_div_xi_1_m1i =  b_div_xi == Fp2(1, -1);
+		twist_b = Fp2(b) / xi;
+		if (twist_b == Fp2(1, -1)) {
+			twist_b_type = tb_1m1i;
+		} else if (twist_b == Fp2(1, -2)) {
+			twist_b_type = tb_1m2i;
+		} else {
+			twist_b_type = tb_generic;
+		}
 		G1::init(0, b, mcl::ec::Proj);
-		G2::init(0, b_div_xi, mcl::ec::Proj);
+		G2::init(0, twist_b, mcl::ec::Proj);
 		G2::setOrder(r);
 		mapTo.init(2 * p - r);
 		glv1.init(r, z);
@@ -609,17 +621,36 @@ struct BNT {
 	}
 	static void mul_b_div_xi(Fp2& y, const Fp2& x)
 	{
-		if (param.is_b_div_xi_1_m1i) {
+		switch (param.twist_b_type) {
+		case Param::tb_1m1i:
 			/*
 				b / xi = 1 - 1i
 				(a + bi)(1 - 1i) = (a + b) + (b - a)i
 			*/
-			Fp t;
-			Fp::add(t, x.a, x.b);
-			Fp::sub(y.b, x.b, x.a);
-			y.a = t;
-		} else {
-			Fp2::mul(y, x, param.b_div_xi);
+			{
+				Fp t;
+				Fp::add(t, x.a, x.b);
+				Fp::sub(y.b, x.b, x.a);
+				y.a = t;
+			}
+			return;
+		case Param::tb_1m2i:
+			/*
+				b / xi = 1 - 2i
+				(a + bi)(1 - 2i) = (a + 2b) + (b - 2a)i
+			*/
+			{
+				Fp t;
+				Fp::sub(t, x.b, x.a);
+				t -= x.a;
+				Fp::add(y.a, x.a, x.b);
+				y.a += x.b;
+				y.b = t;
+			}
+			return;
+		case Param::tb_generic:
+			Fp2::mul(y, x, param.twist_b);
+			return;
 		}
 	}
 	static void dblLineWithoutP(Fp6& l, G2& Q)

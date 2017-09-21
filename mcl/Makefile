@@ -3,7 +3,7 @@ LIB_DIR=lib
 OBJ_DIR=obj
 EXE_DIR=bin
 SRC_SRC=fp.cpp bn_c256.cpp bn_c384.cpp
-TEST_SRC=fp_test.cpp ec_test.cpp fp_util_test.cpp window_method_test.cpp elgamal_test.cpp fp_tower_test.cpp gmp_test.cpp bn_test.cpp bn384_test.cpp glv_test.cpp paillier_test.cpp she_test.cpp vint_test.cpp
+TEST_SRC=fp_test.cpp ec_test.cpp fp_util_test.cpp window_method_test.cpp elgamal_test.cpp fp_tower_test.cpp gmp_test.cpp bn_test.cpp bn384_test.cpp glv_test.cpp paillier_test.cpp she_test.cpp vint_test.cpp bn512_test.cpp
 TEST_SRC+=bn_c256_test.cpp bn_c384_test.cpp
 ifeq ($(CPU),x86-64)
   MCL_USE_XBYAK?=1
@@ -15,7 +15,7 @@ ifeq ($(CPU),x86-64)
     TEST_SRC+=fp_generator_test.cpp
   endif
 endif
-SAMPLE_SRC=bench.cpp ecdh.cpp random.cpp rawbench.cpp vote.cpp pairing.cpp large.cpp tri-dh.cpp bls_sig.cpp pairing_c.c bgn_smpl.cpp
+SAMPLE_SRC=bench.cpp ecdh.cpp random.cpp rawbench.cpp vote.cpp pairing.cpp large.cpp tri-dh.cpp bls_sig.cpp pairing_c.c she_smpl.cpp
 
 ifneq ($(MCL_MAX_BIT_SIZE),)
   CFLAGS+=-DMCL_MAX_BIT_SIZE=$(MCL_MAX_BIT_SIZE)
