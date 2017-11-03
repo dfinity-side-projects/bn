@@ -5,6 +5,10 @@ Barreto-Naehrig curve implementation and BLS
 
 ## Install
 
+### Requirements
+
+Your system needs have installed first llvm, g++, gmp and openssl{-dev}.
+
 ### From source
 
 To install from source, you can run the following commands:
