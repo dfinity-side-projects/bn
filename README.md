@@ -38,3 +38,11 @@ Prebuilt libraries are available for select platforms.
 * [bn-latest-amd64-linux-ubuntu16.04.tar.gz](https://s3-us-west-2.amazonaws.com/dfinity/crypto/bn/latest/bn-latest-amd64-linux-ubuntu16.04.tar.gz)
 
 You may need to place the libraries in the correct path as explained in the above section.
+
+## License
+
+[**(C) 2017 DFINITY STIFTUNG**](http://dfinity.network)
+
+All code and designs are open sourced under GPL V3.
+
+![image](https://user-images.githubusercontent.com/6457089/32753794-10f4cbc2-c883-11e7-8dcf-ff8088b38f9f.png)
