@@ -7,7 +7,11 @@ Barreto-Naehrig curve implementation and BLS
 
 ### Requirements
 
-Your system needs have installed first llvm, g++, gmp and openssl{-dev}.
+Your system needs have installed first llvm, g++, gmp and openssl{-dev}. On Ubuntu:
+
+```
+sudo apt install llvm g++ libgmp-dev libssl-dev
+```
 
 ### From source
 
