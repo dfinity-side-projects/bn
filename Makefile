@@ -17,6 +17,7 @@ clean:
 PREFIX?=/usr/local/
 install: $(TARGET)
 	mkdir -p $(PREFIX)lib
+	cp -a $(MCL_LIB) $(PREFIX)lib
 	cp -a $(TARGET) $(PREFIX)lib
 	mkdir -p $(PREFIX)include/bls
 	cp -a bls/include/bls/bls.h $(PREFIX)include/bls
