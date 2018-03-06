@@ -23,7 +23,7 @@ endif
 ifeq ($(MCL_USE_XBYAK),0)
   CFLAGS+=-DMCL_DONT_USE_XBYAK
 endif
-SHARE_BASENAME_SUF?=_dy
+SHARE_BASENAME_SUF?=
 ##################################################################
 MCL_LIB=$(LIB_DIR)/libmcl.a
 MCL_SNAME=mcl$(SHARE_BASENAME_SUF)
