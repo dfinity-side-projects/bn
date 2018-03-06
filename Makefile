@@ -14,12 +14,13 @@ clean:
 
 .PHONY: $(MCL_LIB) $(TARGET)
 
-PREFIX?=/usr/local/
+PREFIX?=/usr/local
+DESTDIR?=
 install: $(TARGET)
-	mkdir -p $(PREFIX)lib
-	cp -a $(MCL_LIB) $(PREFIX)lib
-	cp -a $(TARGET) $(PREFIX)lib
-	mkdir -p $(PREFIX)include/bls
-	cp -a bls/include/bls/bls.h $(PREFIX)include/bls
-	mkdir -p $(PREFIX)include/mcl
-	cp -a mcl/include/mcl/bn.h $(PREFIX)include/mcl
+	mkdir -p $(DESTDIR)$(PREFIX)/lib
+	cp -a $(MCL_LIB) $(DESTDIR)$(PREFIX)/lib
+	cp -a $(TARGET) $(DESTDIR)$(PREFIX)/lib
+	mkdir -p $(DESTDIR)$(PREFIX)/include/bls
+	cp -a bls/include/bls/bls.h $(DESTDIR)$(PREFIX)/include/bls
+	mkdir -p $(DESTDIR)$(PREFIX)/include/mcl
+	cp -a mcl/include/mcl/bn.h $(DESTDIR)$(PREFIX)/include/mcl
