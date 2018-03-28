@@ -1,18 +1,24 @@
-TARGET=bls/libbls384.so
-MCL_LIB=mcl/lib/libmcl.so
+UNAME_S=$(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+  LIB_SUF=dylib
+else
+  LIB_SUF=so
+endif
+TARGET=bls/libbls384.$(LIB_SUF)
+MCL_LIB=mcl/lib/libmcl.$(LIB_SUF)
 TARGET_STATIC=bls/libbls384.a
 MCL_LIB_STATIC=mcl/lib/libmcl.a
 
 all: $(TARGET) $(TARGET_STATIC)
 
 $(MCL_LIB):
-	$(MAKE) -C mcl UPDATE_ASM=1 lib/libmcl.so CFLAGS_USER=-std=c++11 MCL_MAX_BIT_SIZE=384
+	$(MAKE) -C mcl UPDATE_ASM=1 lib/libmcl.$(LIB_SUF) CFLAGS_USER=-std=c++11 MCL_MAX_BIT_SIZE=384
 
 $(MCL_LIB_STATIC):
 	$(MAKE) -C mcl UPDATE_ASM=1 lib/libmcl.a CFLAGS_USER=-std=c++11 MCL_MAX_BIT_SIZE=384
 
 $(TARGET): $(MCL_LIB)
-	$(MAKE) -C bls libbls384.so MCL_MAX_BIT_SIZE=384
+	$(MAKE) -C bls libbls384.$(LIB_SUF) MCL_MAX_BIT_SIZE=384
 
 $(TARGET_STATIC): $(MCL_LIB_STATIC)
 	$(MAKE) -C bls libbls384.a MCL_MAX_BIT_SIZE=384
