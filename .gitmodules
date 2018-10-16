@@ -1,0 +1,6 @@
+[submodule "bls"]
+	path = bls
+	url = https://github.com/herumi/bls
+[submodule "mcl"]
+	path = mcl
+	url = https://github.com/herumi/mcl
